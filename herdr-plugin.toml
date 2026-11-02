@@ -1,0 +1,27 @@
+id = "riba2534.agent-labels"
+name = "Agent Labels"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Claude / Codex icons and readable status labels for agents in the Herdr sidebar"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["python3", "agent_labels.py", "apply"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["python3", "agent_labels.py", "event"]
+
+[[actions]]
+id = "apply"
+title = "重新设置 Agent 标识"
+description = "Write icons and status labels for every agent on this server"
+contexts = ["global"]
+command = ["python3", "agent_labels.py", "apply"]
+
+[[actions]]
+id = "clear"
+title = "清除 Agent 标识"
+description = "Remove every icon and status label written by this plugin"
+contexts = ["global"]
+command = ["python3", "agent_labels.py", "clear"]

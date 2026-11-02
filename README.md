@@ -30,8 +30,6 @@ Herdr 的侧边栏默认用颜色圆点表示 Agent 状态：运行中、已完�
 
 **只改显示，不碰状态。** 插件只写入 Herdr 的展示元数据，不影响 Agent 的状态判定、通知和 `agent wait`。
 
-> 首个版本正在开发中，发布后即可按下文安装。
-
 ```
 agents                              priority
 ✓ ✳ · homebig · hpc-mail
@@ -150,7 +148,7 @@ herdr plugin config-dir riba2534.agent-labels
 
 | 字段 | 说明 |
 |---|---|
-| `locale` | `auto`（默认，按 `LANG` 判断）、`zh-CN` 或 `en` |
+| `locale` | `auto`（默认，按 `LC_ALL`、`LC_MESSAGES`、`LANG` 的顺序判断，以 `zh` 开头用中文）、`zh-CN` 或 `en` |
 | `logos` | 按 Herdr 的 Agent 种类覆盖图标；设为空字符串表示不显示 |
 | `labels` | 按状态覆盖文案，键为 `working`、`done`、`idle`、`blocked`、`unknown` |
 
