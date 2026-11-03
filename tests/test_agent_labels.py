@@ -137,13 +137,13 @@ class ConfigTest(unittest.TestCase):
 class SinceFormatTest(unittest.TestCase):
     def test_zh(self):
         self.assertEqual(al.render_since(local(2026, 11, 3, 9, 5), NOW, "zh-CN"), "09:05 起")
-        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "zh-CN"), "昨天 23:10 起")
-        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "zh-CN"), "10-30 起")
+        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "zh-CN"), "11-02 23:10 起")
+        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "zh-CN"), "10-30 08:00 起")
 
     def test_en(self):
         self.assertEqual(al.render_since(local(2026, 11, 3, 9, 5), NOW, "en"), "since 09:05")
-        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "en"), "since yesterday 23:10")
-        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "en"), "since 10-30")
+        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "en"), "since 11-02 23:10")
+        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "en"), "since 10-30 08:00")
 
     def test_unknown_and_future(self):
         self.assertIsNone(al.render_since(None, NOW, "zh-CN"))
@@ -297,8 +297,8 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(flag_values(args, "--source"), [al.SOURCE])
 
     def test_since_args_only_touch_the_token(self):
-        args = al.since_args("w1:p3", "昨天 23:10 起")
-        self.assertEqual(flag_values(args, "--token"), ["since=昨天 23:10 起"])
+        args = al.since_args("w1:p3", "11-02 23:10 起")
+        self.assertEqual(flag_values(args, "--token"), ["since=11-02 23:10 起"])
         self.assertNotIn("--state-label", args)
         self.assertNotIn("--agent", args)
 
@@ -366,7 +366,7 @@ class PluginTest(unittest.TestCase):
         self.assertEqual([c[2] for c in calls], ["w1:p1", "w1:p2"])
         self.assertIn("working=运行中", flag_values(calls[0], "--state-label"))
         self.assertEqual(fake.tokens("logo"), {"w1:p1": CLAUDE, "w1:p2": CODEX})
-        self.assertEqual(fake.tokens("since"), {"w1:p1": "昨天 23:10 起", "w1:p2": None})
+        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 23:10 起", "w1:p2": None})
 
     def test_apply_keeps_known_times_and_prunes_closed_panes(self):
         with al.StateStore(self.state_dir, "/tmp/herdr-test.sock").locked() as state:
@@ -416,7 +416,7 @@ class PluginTest(unittest.TestCase):
             state["w1:p3"] = {"status": "idle", "since": local(2026, 11, 3, 8, 0), "shown": "08:00 起"}
         fake = FakeHerdr(agents=[agent("w1:p3", "claude", "working")])
         self.event(fake, "pane.agent_status_changed", NOW, pane_id="w1:p3", agent_status="working", agent="claude")
-        self.assertEqual(fake.tokens("since"), {"w1:p1": "昨天 22:00 起", "w1:p3": "13:00 起"})
+        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 22:00 起", "w1:p3": "13:00 起"})
 
     def test_status_change_after_release_does_not_bring_the_time_back(self):
         with al.StateStore(self.state_dir, "/tmp/herdr-test.sock").locked() as state:

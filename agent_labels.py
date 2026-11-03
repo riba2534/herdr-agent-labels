@@ -53,8 +53,8 @@ LABELS = {
 }
 
 SINCE_FORMATS = {
-    "zh-CN": {"today": "{hm} 起", "yesterday": "昨天 {hm} 起", "older": "{md} 起"},
-    "en": {"today": "since {hm}", "yesterday": "since yesterday {hm}", "older": "since {md}"},
+    "zh-CN": {"today": "{hm} 起", "earlier": "{md} {hm} 起"},
+    "en": {"today": "since {hm}", "earlier": "since {md} {hm}"},
 }
 
 # Nerd Fonts 3.5+ codicons: cod-claude and cod-openai.
@@ -136,13 +136,13 @@ def resolve_logo(agent, config):
 
 
 def render_since(since, now, locale):
-    """Format when the current status started, relative to the local day of `now`."""
+    """Format when the current status started: the time alone today, date and time before."""
     if since is None:
         return None
     formats = SINCE_FORMATS[locale]
     moment = datetime.datetime.fromtimestamp(since)
     days = (datetime.datetime.fromtimestamp(now).date() - moment.date()).days
-    key = "today" if days <= 0 else "yesterday" if days == 1 else "older"
+    key = "today" if days <= 0 else "earlier"
     return formats[key].format(hm=moment.strftime("%H:%M"), md=moment.strftime("%m-%d"))
 
 

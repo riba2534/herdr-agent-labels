@@ -40,9 +40,9 @@ agents                              priority
 ◐ ◎ · macminim6 · viral-bot · agent-1
   运行中 · 13:12 起
 ○ ✳ · devcn · copa · 微信转发
-  空闲 · 昨天 23:10 起
+  空闲 · 11-02 23:10 起
 ○ ✳ · macminim6 · persona
-  空闲 · 10-30 起
+  空闲 · 10-30 08:15 起
 ```
 
 <p align="center"><sub>终端里 ✳ 显示为 Claude 星芒图标，◎ 显示为 OpenAI 花结图标（Nerd Fonts），这里用普通字符代替。</sub></p>
@@ -53,7 +53,7 @@ agents                              priority
 |---|---|
 | Agent 图标 | Claude Code 显示 Claude 星芒，Codex 显示 OpenAI 花结；其他 Agent 显示它的名字，也可以在配置里指定图标 |
 | 状态说明 | 运行中、已完成·未查看、待你确认、空闲、状态未知；按系统语言自动选择中文或英文 |
-| 状态时间 | 进入当前状态的时间：运行中显示开始时间，已完成和空闲显示完成时间；昨天的标「昨天」，更早的只显示日期 |
+| 状态时间 | 进入当前状态的时间：运行中显示开始时间，已完成和空闲显示完成时间；当天的只显示时间，更早的显示日期和时间 |
 | 自动生效 | 新开的 Agent 被 Herdr 识别后立即挂上标识；Herdr 重启后自动补上 |
 | 多台机器 | 每台运行 Herdr 的机器各装一份，Saved SSH machines 里的 Agent 同样显示 |
 | 一键还原 | 「清除 Agent 标识」动作删除插件写入的全部显示内容 |
@@ -91,7 +91,7 @@ agent_panel_sort = "priority"
 [ui.sidebar.agents]
 rows = [
   ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, "machine", "workspace", "tab"],
-  [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", dim = true }],
+  [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", fg = "#89b4fa", dim = false }],
 ]
 ```
 
@@ -102,7 +102,7 @@ rows = [
 | `status_indicators = "symbols"` | 状态图标换成形状不同的符号，不再只靠颜色区分 |
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
 | 第 1 行 | 状态图标、Agent 图标、机器、工作区、标签页；Claude 图标橙色，OpenAI 图标白色 |
-| 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用暗色 |
+| 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用蓝色 |
 
 各状态的显示：
 
@@ -123,9 +123,9 @@ Herdr 不提供状态变化的时间，插件在每台机器上自己记录：
 - **状态变化时记下时间。** 运行中显示开始时间，跑完后显示完成时间。
 - **看过不改时间。** 点开一个「已完成·未查看」的 Agent 后它变成「空闲」，时间仍然是它跑完的时间，而不是你查看的时间。
 - **补上已有 Agent 的时间。** 插件安装或 Herdr 重启时，已经在运行的 Claude Code 会话从会话记录推算：运行中的取你最后一条指令的时间，其他状态取会话记录最后写入的时间。Codex 等其他 Agent 等到下一次状态变化后显示。
-- **格式。** 今天的显示 `13:05 起`，昨天的显示 `昨天 23:10 起`，更早的只显示日期 `10-30 起`；英文为 `since 13:05`、`since yesterday 23:10`、`since 10-30`。
+- **格式。** 当天的只显示时间 `13:05 起`，更早的显示日期和时间 `11-02 23:10 起`；英文为 `since 13:05`、`since 11-02 23:10`。
 
-时间是写入侧边栏的文字，不会自己走动。「今天 / 昨天」在这台机器上有 Agent 状态变化时重新计算，一台机器整晚没有任何变化的话，第二天早上它显示的时间可能还是前一天的格式，直到有 Agent 开始干活。记录保存在 Herdr 的插件状态目录里，同一台机器上的多个 Herdr 会话各自记录。
+时间是写入侧边栏的文字，不会自己走动。是否显示日期在这台机器上有 Agent 状态变化时重新判断，一台机器整晚没有任何变化的话，第二天早上它显示的可能还是不带日期的前一天时间，直到有 Agent 开始干活。记录保存在 Herdr 的插件状态目录里，同一台机器上的多个 Herdr 会话各自记录。
 
 ## 多台机器
 
