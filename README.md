@@ -33,15 +33,15 @@ Herdr 的侧边栏默认用颜色圆点表示 Agent 状态：运行中、已完�
 
 ```
 agents                              priority
-✓ ✳ · homebig · hpc-mail
+✓ ✳ · hpc-mail
   已完成·未查看 · 13:05
-◐ ✳ · homebig · herdrx
+◐ ✳ · herdrx
   运行中 · 12:40
-◐ ◎ · macminim6 · viral-bot · agent-1
+◐ ◎ · viral-bot · agent-1
   运行中 · 13:12
-○ ✳ · devcn · copa · 微信转发
+○ ✳ · copa · 微信转发
   空闲 · 11-02 23:10
-○ ✳ · macminim6 · persona
+○ ✳ · persona
   空闲 · 10-30 08:15
 ```
 
@@ -90,18 +90,18 @@ agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, "machine", "workspace", "tab"],
+  ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, "workspace", "tab"],
   [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", fg = "#89b4fa", dim = false }],
 ]
 ```
 
-保存后运行 `herdr config check` 检查格式，再在 Herdr 里执行 reload config 生效。Herdr 的配置解析只支持 TOML 1.0，行内表不能换行，所以规则写在同一行。
+保存后运行 `herdr config check` 检查格式，再在 Herdr 里按 prefix 键（默认 `Ctrl+B`）、再按 `Shift+R` 执行 reload config。命令行的 `herdr server reload-config` 不一定能刷新已经打开的侧边栏，以界面里的 reload config 为准。Herdr 的配置解析只支持 TOML 1.0，行内表不能换行，所以规则写在同一行。
 
 | 配置 | 作用 |
 |---|---|
 | `status_indicators = "symbols"` | 状态图标换成形状不同的符号，不再只靠颜色区分 |
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
-| 第 1 行 | 状态图标、Agent 图标、机器、工作区、标签页；Claude 图标橙色，OpenAI 图标白色 |
+| 第 1 行 | 状态图标、Agent 图标、工作区、标签页；Claude 图标橙色，OpenAI 图标白色 |
 | 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用蓝色 |
 
 各状态的显示：
@@ -113,6 +113,8 @@ rows = [
 | `working` | ◐ | 运行中 | Running |
 | `idle` | ○ | 空闲 | Idle |
 | `unknown` | · | 状态未知 | Unknown |
+
+推荐配置不显示机器名：上方的 machines 面板已经按机器分组，省下的宽度留给工作区和标签页。几台机器上有同名工作区、需要区分时，在第 1 行的 `"workspace"` 前面加上 `"machine"`。
 
 想在第 3 行显示 Claude 的会话标题，在 `rows` 里加一行 `["terminal_title_stripped"]`。
 
@@ -215,6 +217,8 @@ python3 -m unittest discover tests                         # 单元测试
 **远程机器上的 Agent 没有图标？** 那台机器没有安装插件，或者插件安装前 Agent 就已经在运行。登录那台机器安装插件，再执行一次 `apply` 动作。
 
 **状态时间不准？** 插件安装前就在运行的 Agent，时间是从 Claude Code 会话记录推算的；Codex 等其他 Agent 要等下一次状态变化。如果某个 Agent 的时间明显不对，执行一次「清除 Agent 标识」再执行「重新设置 Agent 标识」，会重新推算。
+
+**改了侧边栏配置没有变化？** 在 Herdr 里按 prefix 键（默认 `Ctrl+B`）再按 `Shift+R` 重新加载配置。命令行的 `herdr server reload-config` 有时刷新不到已经打开的侧边栏。
 
 **怎么卸载？** 先执行「清除 Agent 标识」，再卸载插件，最后删掉 `config.toml` 里加的侧边栏配置：
 
