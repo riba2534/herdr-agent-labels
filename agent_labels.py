@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Claude / Codex icons, readable status labels and status times for the Herdr sidebar.
+"""Claude / Codex icons, readable status labels, status times and workspace agent
+counts for the Herdr sidebar.
 
-Usage: agent_labels.py apply | clear | event
+Usage: agent_labels.py apply | clear | event | board
 
-  apply  write the icon, status labels and status time for every agent on this server
+  apply  write icons, labels, times and workspace counts for this server
   clear  remove everything this plugin wrote
-  event  handle a pane.agent_detected or pane.agent_status_changed hook
-         (reads HERDR_PLUGIN_EVENT and HERDR_PLUGIN_EVENT_JSON)
+  event  handle a hook (reads HERDR_PLUGIN_EVENT and HERDR_PLUGIN_EVENT_JSON)
+  board  open the agent overview popup (board.py)
 
 Everything is written as display-only pane metadata, so agent status,
 notifications and `herdr agent wait` are never affected.
@@ -32,6 +33,16 @@ SOURCE = "plugin:riba2534.agent-labels"
 LOGO_TOKEN = "logo"
 SINCE_TOKEN = "since"
 STATES = ("working", "done", "blocked", "idle", "unknown")
+
+# Workspace tokens: how many of the workspace's agents are in each status.
+COUNT_TOKENS = (
+    ("working", "agents_working", "\u25d0"),
+    ("done", "agents_done", "\u2713"),
+    ("blocked", "agents_blocked", "\u00d7"),
+    ("idle", "agents_idle", "\u25cb"),
+)
+# Events that can change which agents sit in a workspace, or turn done into idle.
+COUNT_EVENTS = {"pane.closed", "pane.moved", "pane.focused", "tab.focused", "workspace.focused"}
 TRANSCRIPT_SCAN_LIMIT = 64 * 1024 * 1024
 TRANSCRIPT_CHUNK = 1024 * 1024
 
@@ -256,19 +267,19 @@ def estimate_since(kind, status, session, environ):
         return None
 
 
-def state_file_name(socket_path):
+def state_file_name(socket_path, name="since"):
     """One record per Herdr server: the plugin state dir is shared by every session."""
     if not socket_path:
-        return "since.json"
-    return "since-{}.json".format(hashlib.sha1(socket_path.encode("utf-8")).hexdigest()[:12])
+        return name + ".json"
+    return "{}-{}.json".format(name, hashlib.sha1(socket_path.encode("utf-8")).hexdigest()[:12])
 
 
 class StateStore:
-    """Per-server record of when each agent entered its current status."""
+    """Per-server JSON record, serialized across concurrently running hooks."""
 
-    def __init__(self, state_dir, socket_path=None):
+    def __init__(self, state_dir, socket_path=None, name="since"):
         self.state_dir = state_dir
-        self.path = os.path.join(state_dir, state_file_name(socket_path)) if state_dir else None
+        self.path = os.path.join(state_dir, state_file_name(socket_path, name)) if state_dir else None
 
     @contextlib.contextmanager
     def locked(self):
@@ -295,7 +306,7 @@ class StateStore:
         return state if isinstance(state, dict) else {}
 
     def _write(self, state):
-        fd, tmp = tempfile.mkstemp(dir=self.state_dir, prefix=".since.")
+        fd, tmp = tempfile.mkstemp(dir=self.state_dir, prefix=".state.")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(state, fh, ensure_ascii=False, indent=1, sort_keys=True)
@@ -333,6 +344,32 @@ def clear_args(pane_id):
     ]
 
 
+def workspace_args(workspace_id, tokens):
+    args = ["workspace", "report-metadata", workspace_id, "--source", SOURCE]
+    for name in sorted(tokens):
+        args += token_args(name, tokens[name])
+    return args
+
+
+def workspace_counts(agents):
+    """{workspace_id: {status: number of agents}}"""
+    counts = {}
+    for agent in agents:
+        workspace, status = agent.get("workspace_id"), agent.get("agent_status")
+        if workspace and status:
+            bucket = counts.setdefault(workspace, {})
+            bucket[status] = bucket.get(status, 0) + 1
+    return counts
+
+
+def count_tokens(counts):
+    """Token values for one workspace, e.g. agents_working="◐2"; empty statuses are cleared."""
+    return {
+        token: "{}{}".format(symbol, counts[status]) if counts.get(status) else None
+        for status, token, symbol in COUNT_TOKENS
+    }
+
+
 def token_args(name, value):
     if value:
         return ["--token", "{}={}".format(name, value)]
@@ -353,7 +390,7 @@ def parse_event(raw):
 
 def event_name(environ, data):
     name = environ.get("HERDR_PLUGIN_EVENT") or str(data.get("type", ""))
-    return name.replace("_", ".", 1) if name.startswith("pane_") else name
+    return name.replace("_", ".", 1) if "." not in name else name
 
 
 class Herdr:
@@ -388,6 +425,9 @@ class Herdr:
     def panes(self):
         return self.call("pane", "list").get("result", {}).get("panes", [])
 
+    def workspaces(self):
+        return self.call("workspace", "list").get("result", {}).get("workspaces", [])
+
 
 def session_of(agent):
     return (agent.get("agent_session") or {}).get("value")
@@ -403,7 +443,9 @@ class Plugin:
         self.environ = environ
         self.now = time.time() if now is None else now
         self.locale = resolve_locale(config, environ)
-        self.store = StateStore(environ.get("HERDR_PLUGIN_STATE_DIR"), environ.get("HERDR_SOCKET_PATH"))
+        state_dir, socket_path = environ.get("HERDR_PLUGIN_STATE_DIR"), environ.get("HERDR_SOCKET_PATH")
+        self.store = StateStore(state_dir, socket_path)
+        self.counts = StateStore(state_dir, socket_path, name="counts")
 
     def labels(self):
         return resolve_labels(self.config, self.environ)
@@ -441,20 +483,49 @@ class Plugin:
                               shown.get(agent["pane_id"]))
             failed += not self.report(args)
         print("agent-labels: labeled {} agent(s)".format(len(agents) - failed))
-        return 1 if failed else 0
+        return max(1 if failed else 0, self.refresh_counts())
 
     def clear(self):
         # Forget the times first: clearing labels makes Herdr resend statuses, and
         # those hooks must find nothing to restore.
         self.store.remove()
+        self.counts.remove()
         failed = done = 0
         for pane in self.herdr.panes():
             if pane.get("pane_id"):
                 ok = self.report(clear_args(pane["pane_id"]))
                 done += ok
                 failed += not ok
+        empty = count_tokens({})
+        for workspace in self.herdr.workspaces():
+            if workspace.get("workspace_id"):
+                failed += not self.report(workspace_args(workspace["workspace_id"], empty))
         print("agent-labels: cleared {} pane(s)".format(done))
         return 1 if failed else 0
+
+    def refresh_counts(self):
+        """Write per-workspace agent counts, reporting only the workspaces that changed."""
+        failed = 0
+        with self.counts.locked() as shown:
+            counts = workspace_counts(self.herdr.agents())
+            workspaces = [w["workspace_id"] for w in self.herdr.workspaces() if w.get("workspace_id")]
+            for workspace in set(shown) - set(workspaces):
+                del shown[workspace]
+            for workspace in workspaces:
+                tokens = count_tokens(counts.get(workspace, {}))
+                if shown.get(workspace) == tokens:
+                    continue
+                if self.report(workspace_args(workspace, tokens)):
+                    shown[workspace] = tokens
+                else:
+                    failed += 1
+        return 1 if failed else 0
+
+    def board(self):
+        """Open the overview popup declared as the `board` pane entrypoint."""
+        plugin_id = self.environ.get("HERDR_PLUGIN_ID") or SOURCE.split(":", 1)[1]
+        self.herdr.call("plugin", "pane", "open", "--plugin", plugin_id, "--entrypoint", "board")
+        return 0
 
     def agent_detected(self, data):
         pane, kind = data.get("pane_id"), data.get("agent")
@@ -526,23 +597,27 @@ class Plugin:
 
     def event(self):
         data = parse_event(self.environ.get("HERDR_PLUGIN_EVENT_JSON"))
+        name = event_name(self.environ, data)
+        if name in COUNT_EVENTS:
+            return self.refresh_counts()
+        if name not in ("pane.agent_status_changed", "pane.agent_detected"):
+            log("ignoring event {!r}".format(name))
+            return 0
         if not data.get("pane_id"):
             log("event without pane_id, nothing to do")
             return 0
-        name = event_name(self.environ, data)
         if name == "pane.agent_status_changed":
-            return self.status_changed(data)
-        if name == "pane.agent_detected":
-            return self.agent_detected(data)
-        log("ignoring event {!r}".format(name))
-        return 0
+            result = self.status_changed(data)
+        else:
+            result = self.agent_detected(data)
+        return max(result, self.refresh_counts())
 
 
 def main(argv=None, environ=None, run=subprocess.run, now=None):
     argv = sys.argv[1:] if argv is None else argv
     environ = os.environ if environ is None else environ
-    if len(argv) != 1 or argv[0] not in ("apply", "clear", "event"):
-        log("usage: agent_labels.py apply|clear|event")
+    if len(argv) != 1 or argv[0] not in ("apply", "clear", "event", "board"):
+        log("usage: agent_labels.py apply|clear|event|board")
         return 2
     herdr = Herdr(environ.get("HERDR_BIN_PATH") or "herdr", run=run)
     plugin = Plugin(herdr, load_config(environ.get("HERDR_PLUGIN_CONFIG_DIR")), environ, now)

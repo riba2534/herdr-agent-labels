@@ -1,8 +1,8 @@
 id = "riba2534.agent-labels"
 name = "Agent Labels"
-version = "0.2.2"
+version = "0.3.0"
 min_herdr_version = "0.9.1"
-description = "Claude / Codex icons, readable status labels and status times for agents in the Herdr sidebar"
+description = "Claude / Codex icons, status labels and times, workspace agent counts and an agent overview popup for the Herdr sidebar"
 platforms = ["linux", "macos"]
 
 [[startup]]
@@ -16,16 +16,52 @@ command = ["python3", "agent_labels.py", "event"]
 on = "pane.agent_status_changed"
 command = ["python3", "agent_labels.py", "event"]
 
+# Keep workspace agent counts current when agents move, close, or get viewed.
+[[events]]
+on = "pane.closed"
+command = ["python3", "agent_labels.py", "event"]
+
+[[events]]
+on = "pane.moved"
+command = ["python3", "agent_labels.py", "event"]
+
+[[events]]
+on = "pane.focused"
+command = ["python3", "agent_labels.py", "event"]
+
+[[events]]
+on = "tab.focused"
+command = ["python3", "agent_labels.py", "event"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "agent_labels.py", "event"]
+
+[[panes]]
+id = "board"
+title = "Agent 总览"
+placement = "popup"
+width = "90%"
+height = "85%"
+command = ["python3", "board.py"]
+
+[[actions]]
+id = "board"
+title = "Agent 总览"
+description = "Every agent on every machine, grouped by status"
+contexts = ["global"]
+command = ["python3", "agent_labels.py", "board"]
+
 [[actions]]
 id = "apply"
 title = "重新设置 Agent 标识"
-description = "Write icons and status labels for every agent on this server"
+description = "Write icons, status labels, times and workspace counts for this server"
 contexts = ["global"]
 command = ["python3", "agent_labels.py", "apply"]
 
 [[actions]]
 id = "clear"
 title = "清除 Agent 标识"
-description = "Remove every icon and status label written by this plugin"
+description = "Remove every icon, label, time and count written by this plugin"
 contexts = ["global"]
 command = ["python3", "agent_labels.py", "clear"]

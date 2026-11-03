@@ -23,10 +23,11 @@ CODEX = "\uec81"
 class FakeHerdr:
     """Records herdr CLI calls and answers agent/pane listings."""
 
-    def __init__(self, agents=(), panes=(), fail_on=None):
+    def __init__(self, agents=(), panes=(), workspaces=(), fail_on=None):
         self.calls = []
         self.agents = list(agents)
         self.panes = list(panes)
+        self.workspaces = [{"workspace_id": w} for w in workspaces]
         self.fail_on = fail_on
 
     def __call__(self, cmd, **kwargs):
@@ -41,12 +42,29 @@ class FakeHerdr:
             body = {"result": {"agent": match[0] if match else {}, "type": "agent_info"}}
         elif args[:2] == ["pane", "list"]:
             body = {"result": {"panes": self.panes, "type": "pane_list"}}
+        elif args[:2] == ["workspace", "list"]:
+            body = {"result": {"workspaces": self.workspaces, "type": "workspace_list"}}
         else:
             body = {"result": {"type": "ok"}}
         return SimpleNamespace(returncode=0, stdout=json.dumps(body), stderr="")
 
     def metadata_calls(self):
         return [c for c in self.calls if c[:2] == ["pane", "report-metadata"]]
+
+    def workspace_calls(self):
+        return [c for c in self.calls if c[:2] == ["workspace", "report-metadata"]]
+
+    def workspace_tokens(self):
+        """Latest count tokens written per workspace."""
+        result = {}
+        for call in self.workspace_calls():
+            tokens = result.setdefault(call[2], {})
+            for name in flag_values(call, "--clear-token"):
+                tokens[name] = None
+            for item in flag_values(call, "--token"):
+                key, _, value = item.partition("=")
+                tokens[key] = value
+        return result
 
     def tokens(self, name):
         """Latest value written for a token per pane (None when cleared)."""
@@ -66,8 +84,9 @@ def flag_values(args, flag):
     return [args[i + 1] for i, arg in enumerate(args) if arg == flag]
 
 
-def agent(pane, kind="claude", status="idle", session=None):
-    info = {"pane_id": pane, "agent": kind, "agent_status": status}
+def agent(pane, kind="claude", status="idle", session=None, workspace=None):
+    info = {"pane_id": pane, "agent": kind, "agent_status": status,
+            "workspace_id": workspace or pane.split(":")[0]}
     if session:
         info["agent_session"] = {"agent": kind, "kind": "id", "value": session}
     return info
@@ -472,8 +491,64 @@ class PluginTest(unittest.TestCase):
     def test_events_without_pane_or_unknown_events_are_ignored(self):
         fake = FakeHerdr()
         self.assertEqual(al.main(["event"], self.env(HERDR_PLUGIN_EVENT_JSON="{}"), run=fake), 0)
-        self.assertEqual(self.event(fake, "pane.focused", NOW, pane_id="w1:p1"), 0)
+        self.assertEqual(self.event(fake, "worktree.created", NOW, workspace_id="w1"), 0)
+        self.assertEqual(self.event(fake, "pane.agent_status_changed", NOW, agent_status="idle"), 0)
         self.assertEqual(fake.calls, [])
+
+    def test_workspace_counts(self):
+        counts = al.workspace_counts([
+            agent("w1:p1", status="working"), agent("w1:p2", status="working"),
+            agent("w1:p3", status="idle"), agent("w2:p1", status="done"), {"pane_id": "w3:p1"},
+        ])
+        self.assertEqual(counts, {"w1": {"working": 2, "idle": 1}, "w2": {"done": 1}})
+        self.assertEqual(al.count_tokens(counts["w1"]), {
+            "agents_working": "\u25d02", "agents_done": None, "agents_blocked": None, "agents_idle": "\u25cb1",
+        })
+
+    def test_counts_are_written_only_when_they_change(self):
+        fake = FakeHerdr(
+            agents=[agent("w1:p1", status="working"), agent("w1:p2", status="idle"), agent("w2:p1", status="done")],
+            workspaces=["w1", "w2", "w3"],
+        )
+        self.assertEqual(al.main(["apply"], self.env(), run=fake, now=NOW), 0)
+        tokens = fake.workspace_tokens()
+        self.assertEqual(tokens["w1"]["agents_working"], "\u25d01")
+        self.assertEqual(tokens["w1"]["agents_idle"], "\u25cb1")
+        self.assertEqual(tokens["w2"]["agents_done"], "\u27131")
+        self.assertEqual(tokens["w3"], {t: None for _, t, _ in al.COUNT_TOKENS})
+        self.assertEqual(len(fake.workspace_calls()), 3)
+
+        self.event(fake, "pane.focused", NOW, pane_id="w1:p1")
+        self.assertEqual(len(fake.workspace_calls()), 3)
+
+        fake.agents[2]["agent_status"] = "idle"  # viewed: done turns idle without a status event
+        self.event(fake, "tab.focused", NOW, tab_id="w2:t1")
+        self.assertEqual(len(fake.workspace_calls()), 4)
+        self.assertEqual(fake.workspace_tokens()["w2"]["agents_done"], None)
+        self.assertEqual(fake.workspace_tokens()["w2"]["agents_idle"], "\u25cb1")
+
+    def test_closed_workspaces_are_forgotten(self):
+        fake = FakeHerdr(agents=[agent("w1:p1")], workspaces=["w1", "w2"])
+        al.main(["apply"], self.env(), run=fake, now=NOW)
+        fake.workspaces = [{"workspace_id": "w1"}]
+        self.event(fake, "pane.closed", NOW, pane_id="w2:p1")
+        with al.StateStore(self.state_dir, "/tmp/herdr-test.sock", name="counts").locked() as shown:
+            self.assertEqual(set(shown), {"w1"})
+
+    def test_clear_removes_workspace_counts(self):
+        fake = FakeHerdr(agents=[agent("w1:p1")], panes=[{"pane_id": "w1:p1"}], workspaces=["w1"])
+        al.main(["apply"], self.env(), run=fake, now=NOW)
+        self.assertEqual(al.main(["clear"], self.env(), run=fake, now=NOW), 0)
+        self.assertEqual(fake.workspace_tokens()["w1"], {t: None for _, t, _ in al.COUNT_TOKENS})
+        # The next refresh writes everything again because the cache was dropped.
+        al.main(["apply"], self.env(), run=fake, now=NOW)
+        self.assertEqual(fake.workspace_tokens()["w1"]["agents_idle"], "\u25cb1")
+
+    def test_board_action_opens_the_popup(self):
+        fake = FakeHerdr()
+        self.assertEqual(al.main(["board"], self.env(HERDR_PLUGIN_ID="riba2534.agent-labels"), run=fake), 0)
+        self.assertEqual(fake.calls, [["plugin", "pane", "open", "--plugin", "riba2534.agent-labels",
+                                       "--entrypoint", "board"]])
 
     def test_usage(self):
         self.assertEqual(al.main([], self.env(), run=FakeHerdr()), 2)
