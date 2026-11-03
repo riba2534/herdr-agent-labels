@@ -136,9 +136,9 @@ class ConfigTest(unittest.TestCase):
 
 class SinceFormatTest(unittest.TestCase):
     def test_zh(self):
-        self.assertEqual(al.render_since(local(2026, 11, 3, 9, 5), NOW, "zh-CN"), "09:05 起")
-        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "zh-CN"), "11-02 23:10 起")
-        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "zh-CN"), "10-30 08:00 起")
+        self.assertEqual(al.render_since(local(2026, 11, 3, 9, 5), NOW, "zh-CN"), "09:05")
+        self.assertEqual(al.render_since(local(2026, 11, 2, 23, 10), NOW, "zh-CN"), "11-02 23:10")
+        self.assertEqual(al.render_since(local(2026, 10, 30, 8, 0), NOW, "zh-CN"), "10-30 08:00")
 
     def test_en(self):
         self.assertEqual(al.render_since(local(2026, 11, 3, 9, 5), NOW, "en"), "since 09:05")
@@ -147,7 +147,7 @@ class SinceFormatTest(unittest.TestCase):
 
     def test_unknown_and_future(self):
         self.assertIsNone(al.render_since(None, NOW, "zh-CN"))
-        self.assertEqual(al.render_since(NOW + 60, NOW, "zh-CN"), "13:01 起")
+        self.assertEqual(al.render_since(NOW + 60, NOW, "zh-CN"), "13:01")
 
 
 class KeepsSinceTest(unittest.TestCase):
@@ -275,11 +275,11 @@ class StateStoreTest(unittest.TestCase):
 class ArgsTest(unittest.TestCase):
     def test_apply_args(self):
         labels = al.LABELS["zh-CN"]
-        args = al.apply_args("w1:p1", "claude", CLAUDE, labels, "09:05 起")
+        args = al.apply_args("w1:p1", "claude", CLAUDE, labels, "09:05")
         self.assertEqual(args[:3], ["pane", "report-metadata", "w1:p1"])
         self.assertEqual(flag_values(args, "--source"), [al.SOURCE])
         self.assertEqual(flag_values(args, "--agent"), ["claude"])
-        self.assertEqual(flag_values(args, "--token"), ["logo=" + CLAUDE, "since=09:05 起"])
+        self.assertEqual(flag_values(args, "--token"), ["logo=" + CLAUDE, "since=09:05"])
         self.assertEqual(
             flag_values(args, "--state-label"),
             ["{}={}".format(s, labels[s]) for s in al.STATES],
@@ -297,8 +297,8 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(flag_values(args, "--source"), [al.SOURCE])
 
     def test_since_args_only_touch_the_token(self):
-        args = al.since_args("w1:p3", "11-02 23:10 起")
-        self.assertEqual(flag_values(args, "--token"), ["since=11-02 23:10 起"])
+        args = al.since_args("w1:p3", "11-02 23:10")
+        self.assertEqual(flag_values(args, "--token"), ["since=11-02 23:10"])
         self.assertNotIn("--state-label", args)
         self.assertNotIn("--agent", args)
 
@@ -366,7 +366,7 @@ class PluginTest(unittest.TestCase):
         self.assertEqual([c[2] for c in calls], ["w1:p1", "w1:p2"])
         self.assertIn("working=运行中", flag_values(calls[0], "--state-label"))
         self.assertEqual(fake.tokens("logo"), {"w1:p1": CLAUDE, "w1:p2": CODEX})
-        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 23:10 起", "w1:p2": None})
+        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 23:10", "w1:p2": None})
 
     def test_apply_keeps_known_times_and_prunes_closed_panes(self):
         with al.StateStore(self.state_dir, "/tmp/herdr-test.sock").locked() as state:
@@ -374,7 +374,7 @@ class PluginTest(unittest.TestCase):
             state["w9:p9"] = {"status": "idle", "session": "s9", "since": 1.0}
         fake = FakeHerdr(agents=[agent("w1:p1", "claude", "idle", "s1")])
         self.assertEqual(al.main(["apply"], self.env(), run=fake, now=NOW), 0)
-        self.assertEqual(fake.tokens("since"), {"w1:p1": "09:05 起"})
+        self.assertEqual(fake.tokens("since"), {"w1:p1": "09:05"})
         self.assertEqual(set(self.state()), {"w1:p1"})
         self.assertEqual(self.state()["w1:p1"]["status"], "idle")
 
@@ -387,7 +387,7 @@ class PluginTest(unittest.TestCase):
         fake = FakeHerdr(agents=[agent("w1:p4", "claude", "working", "s4")])
         t0 = local(2026, 11, 3, 10, 0)
         self.assertEqual(self.event(fake, "pane.agent_detected", t0, pane_id="w1:p4", agent="claude"), 0)
-        self.assertEqual(fake.tokens("since"), {"w1:p4": "10:00 起"})
+        self.assertEqual(fake.tokens("since"), {"w1:p4": "10:00"})
         self.assertEqual(fake.tokens("logo"), {"w1:p4": CLAUDE})
 
         # Writing labels makes Herdr resend the same status; the time must not move.
@@ -398,7 +398,7 @@ class PluginTest(unittest.TestCase):
         fake.agents[0]["agent_status"] = "done"
         self.event(fake, "pane.agent_status_changed", local(2026, 11, 3, 10, 30),
                    pane_id="w1:p4", agent_status="done", agent="claude")
-        self.assertEqual(fake.tokens("since"), {"w1:p4": "10:30 起"})
+        self.assertEqual(fake.tokens("since"), {"w1:p4": "10:30"})
         status_calls = fake.metadata_calls()[-1]
         self.assertNotIn("--state-label", status_calls)
 
@@ -411,12 +411,12 @@ class PluginTest(unittest.TestCase):
 
     def test_status_change_refreshes_labels_that_crossed_midnight(self):
         with al.StateStore(self.state_dir, "/tmp/herdr-test.sock").locked() as state:
-            state["w1:p1"] = {"status": "idle", "since": local(2026, 11, 2, 22, 0), "shown": "22:00 起"}
-            state["w1:p2"] = {"status": "idle", "since": local(2026, 11, 3, 8, 0), "shown": "08:00 起"}
-            state["w1:p3"] = {"status": "idle", "since": local(2026, 11, 3, 8, 0), "shown": "08:00 起"}
+            state["w1:p1"] = {"status": "idle", "since": local(2026, 11, 2, 22, 0), "shown": "22:00"}
+            state["w1:p2"] = {"status": "idle", "since": local(2026, 11, 3, 8, 0), "shown": "08:00"}
+            state["w1:p3"] = {"status": "idle", "since": local(2026, 11, 3, 8, 0), "shown": "08:00"}
         fake = FakeHerdr(agents=[agent("w1:p3", "claude", "working")])
         self.event(fake, "pane.agent_status_changed", NOW, pane_id="w1:p3", agent_status="working", agent="claude")
-        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 22:00 起", "w1:p3": "13:00 起"})
+        self.assertEqual(fake.tokens("since"), {"w1:p1": "11-02 22:00", "w1:p3": "13:00"})
 
     def test_status_change_after_release_does_not_bring_the_time_back(self):
         with al.StateStore(self.state_dir, "/tmp/herdr-test.sock").locked() as state:

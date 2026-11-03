@@ -53,7 +53,7 @@ LABELS = {
 }
 
 SINCE_FORMATS = {
-    "zh-CN": {"today": "{hm} 起", "earlier": "{md} {hm} 起"},
+    "zh-CN": {"today": "{hm}", "earlier": "{md} {hm}"},
     "en": {"today": "since {hm}", "earlier": "since {md} {hm}"},
 }
 
