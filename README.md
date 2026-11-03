@@ -1,9 +1,9 @@
 <h1 align="center">herdr-agent-labels</h1>
 
 <p align="center">
-  <strong>一眼分清每个 Agent 是谁、在干什么</strong>
+  <strong>一眼分清每个 Agent 是谁、在干什么、从什么时候开始</strong>
   <br />
-  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标和易读的状态说明，正在跑的、跑完没看的、等你确认的一目了然。
+  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标、易读的状态说明和状态时间，正在跑的、跑完没看的、闲置很久的一目了然。
 </p>
 
 <p align="center">
@@ -17,6 +17,7 @@
 <p align="center">
   <a href="#安装">安装</a> ·
   <a href="#配置侧边栏">配置侧边栏</a> ·
+  <a href="#状态时间">状态时间</a> ·
   <a href="#多台机器">多台机器</a> ·
   <a href="#自定义">自定义</a> ·
   <a href="#工作原理">工作原理</a> ·
@@ -26,20 +27,22 @@
 
 ---
 
-Herdr 的侧边栏默认用颜色圆点表示 Agent 状态：运行中、已完成、等待确认都是实心圆点，只靠颜色区分；Claude Code 和 Codex 也只显示一个英文名。同时开十几个 Agent、分布在几台机器上时，很难一眼看出哪些还在跑、哪些已经跑完。herdr-agent-labels 是一个 Herdr 插件，给每个 Agent 挂上对应的图标和一行状态说明，配合 Herdr 自带的按状态排序，同一状态的 Agent 自然排在一起。
+Herdr 的侧边栏默认用颜色圆点表示 Agent 状态：运行中、已完成、等待确认都是实心圆点，只靠颜色区分；Claude Code 和 Codex 也只显示一个英文名。同时开十几个 Agent、分布在几台机器上时，很难一眼看出哪些还在跑、哪些已经跑完、哪些已经闲置好几天。herdr-agent-labels 是一个 Herdr 插件，给每个 Agent 挂上对应的图标、一行状态说明和进入这个状态的时间，配合 Herdr 自带的按状态排序，同一状态的 Agent 自然排在一起。
 
 **只改显示，不碰状态。** 插件只写入 Herdr 的展示元数据，不影响 Agent 的状态判定、通知和 `agent wait`。
 
 ```
 agents                              priority
 ✓ ✳ · homebig · hpc-mail
-  已完成·未查看
+  已完成·未查看 · 13:05 起
 ◐ ✳ · homebig · herdrx
-  运行中
+  运行中 · 12:40 起
 ◐ ◎ · macminim6 · viral-bot · agent-1
-  运行中
+  运行中 · 13:12 起
 ○ ✳ · devcn · copa · 微信转发
-  空闲
+  空闲 · 昨天 23:10 起
+○ ✳ · macminim6 · persona
+  空闲 · 10-30 起
 ```
 
 <p align="center"><sub>终端里 ✳ 显示为 Claude 星芒图标，◎ 显示为 OpenAI 花结图标（Nerd Fonts），这里用普通字符代替。</sub></p>
@@ -50,6 +53,7 @@ agents                              priority
 |---|---|
 | Agent 图标 | Claude Code 显示 Claude 星芒，Codex 显示 OpenAI 花结；其他 Agent 显示它的名字，也可以在配置里指定图标 |
 | 状态说明 | 运行中、已完成·未查看、待你确认、空闲、状态未知；按系统语言自动选择中文或英文 |
+| 状态时间 | 进入当前状态的时间：运行中显示开始时间，已完成和空闲显示完成时间；昨天的标「昨天」，更早的只显示日期 |
 | 自动生效 | 新开的 Agent 被 Herdr 识别后立即挂上标识；Herdr 重启后自动补上 |
 | 多台机器 | 每台运行 Herdr 的机器各装一份，Saved SSH machines 里的 Agent 同样显示 |
 | 一键还原 | 「清除 Agent 标识」动作删除插件写入的全部显示内容 |
@@ -87,7 +91,7 @@ agent_panel_sort = "priority"
 [ui.sidebar.agents]
 rows = [
   ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, "machine", "workspace", "tab"],
-  [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }],
+  [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", dim = true }],
 ]
 ```
 
@@ -98,7 +102,7 @@ rows = [
 | `status_indicators = "symbols"` | 状态图标换成形状不同的符号，不再只靠颜色区分 |
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
 | 第 1 行 | 状态图标、Agent 图标、机器、工作区、标签页；Claude 图标橙色，OpenAI 图标白色 |
-| 第 2 行 | 状态说明，运行中、已完成·未查看、待你确认分别用黄、青、红色加粗 |
+| 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用暗色 |
 
 各状态的显示：
 
@@ -111,6 +115,17 @@ rows = [
 | `unknown` | · | 状态未知 | Unknown |
 
 想在第 3 行显示 Claude 的会话标题，在 `rows` 里加一行 `["terminal_title_stripped"]`。
+
+## 状态时间
+
+Herdr 不提供状态变化的时间，插件在每台机器上自己记录：
+
+- **状态变化时记下时间。** 运行中显示开始时间，跑完后显示完成时间。
+- **看过不改时间。** 点开一个「已完成·未查看」的 Agent 后它变成「空闲」，时间仍然是它跑完的时间，而不是你查看的时间。
+- **补上已有 Agent 的时间。** 插件安装或 Herdr 重启时，已经在运行的 Claude Code 会话从会话记录推算：运行中的取你最后一条指令的时间，其他状态取会话记录最后写入的时间。Codex 等其他 Agent 等到下一次状态变化后显示。
+- **格式。** 今天的显示 `13:05 起`，昨天的显示 `昨天 23:10 起`，更早的只显示日期 `10-30 起`；英文为 `since 13:05`、`since yesterday 23:10`、`since 10-30`。
+
+时间是写入侧边栏的文字，不会自己走动。「今天 / 昨天」在这台机器上有 Agent 状态变化时重新计算，一台机器整晚没有任何变化的话，第二天早上它显示的时间可能还是前一天的格式，直到有 Agent 开始干活。记录保存在 Herdr 的插件状态目录里，同一台机器上的多个 Herdr 会话各自记录。
 
 ## 多台机器
 
@@ -157,19 +172,20 @@ herdr plugin config-dir riba2534.agent-labels
 ## 工作原理
 
 ```
-Herdr server ── 识别到 Agent ──▶ agent_labels.py ── pane report-metadata ──▶ $logo + 各状态文案
-                                                                                 │
-Herdr 客户端侧边栏 ◀── config.toml 的行布局引用 $logo 和 state_text ◀──────────────┘
+Herdr server ── 识别到 Agent / 状态变化 ──▶ agent_labels.py ── pane report-metadata ──▶ $logo + $since + 各状态文案
+                                                                                               │
+Herdr 客户端侧边栏 ◀── config.toml 的行布局引用 $logo、state_text 和 $since ◀─────────────────────┘
 ```
 
-- 插件通过 `herdr pane report-metadata` 给每个 Agent 写入两类展示元数据：`logo` 自定义字段，以及五种状态各自的文案（`state_labels`）。
-- 状态变化时，Herdr 按 Agent 当前的状态挑选对应文案显示，插件不需要跟踪状态，也没有常驻进程。
-- 两个触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除。
+- 插件通过 `herdr pane report-metadata` 给每个 Agent 写入展示元数据：`logo` 和 `since` 两个自定义字段，以及五种状态各自的文案（`state_labels`）。
+- 状态文案一次写好，Herdr 按 Agent 当前的状态挑选显示；时间由状态变化事件更新。插件没有常驻进程，每次事件执行一次就退出。
+- 三个触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识和时间；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除；`pane.agent_status_changed` 事件记录状态变化的时间，只写 `since` 字段。
+- 状态时间记录在插件状态目录下的 `since-<server>.json`，按 Herdr server 区分，多个钩子同时运行时用文件锁串行。
 - 展示元数据不参与状态判定，Agent 的状态、通知、`agent wait` 和排序都由 Herdr 自己决定。
 
 ```
-herdr-plugin.toml   插件清单：启动钩子、事件钩子、两个动作
-agent_labels.py     写入与清除 Agent 标识
+herdr-plugin.toml   插件清单：启动钩子、两个事件钩子、两个动作
+agent_labels.py     写入与清除 Agent 标识，记录状态时间
 tests/              单元测试
 ```
 
@@ -197,6 +213,8 @@ python3 -m unittest discover tests                         # 单元测试
 **会影响 `agent wait`、通知或自动化脚本吗？** 不会。插件写入的是展示元数据，Herdr 的状态判定、等待和通知都不读取它。
 
 **远程机器上的 Agent 没有图标？** 那台机器没有安装插件，或者插件安装前 Agent 就已经在运行。登录那台机器安装插件，再执行一次 `apply` 动作。
+
+**状态时间不准？** 插件安装前就在运行的 Agent，时间是从 Claude Code 会话记录推算的；Codex 等其他 Agent 要等下一次状态变化。如果某个 Agent 的时间明显不对，执行一次「清除 Agent 标识」再执行「重新设置 Agent 标识」，会重新推算。
 
 **怎么卸载？** 先执行「清除 Agent 标识」，再卸载插件，最后删掉 `config.toml` 里加的侧边栏配置：
 
