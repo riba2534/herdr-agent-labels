@@ -1,8 +1,8 @@
 id = "riba2534.agent-labels"
 name = "Agent Labels"
-version = "0.3.1"
+version = "0.3.2"
 min_herdr_version = "0.9.1"
-description = "Claude / Codex icons, status labels and times, and an agent overview popup for the Herdr sidebar"
+description = "Claude / Codex icons, readable status labels and status times for agents in the Herdr sidebar"
 platforms = ["linux", "macos"]
 
 [[startup]]
@@ -16,31 +16,16 @@ command = ["python3", "agent_labels.py", "event"]
 on = "pane.agent_status_changed"
 command = ["python3", "agent_labels.py", "event"]
 
-[[panes]]
-id = "board"
-title = "Agent 总览"
-placement = "popup"
-width = "90%"
-height = "85%"
-command = ["python3", "board.py"]
-
-[[actions]]
-id = "board"
-title = "Agent 总览"
-description = "Every agent on every machine, grouped by status"
-contexts = ["global"]
-command = ["python3", "agent_labels.py", "board"]
-
 [[actions]]
 id = "apply"
 title = "重新设置 Agent 标识"
-description = "Write icons, status labels and times for every agent on this server"
+description = "Write icons and status labels for every agent on this server"
 contexts = ["global"]
 command = ["python3", "agent_labels.py", "apply"]
 
 [[actions]]
 id = "clear"
 title = "清除 Agent 标识"
-description = "Remove every icon, label and time written by this plugin"
+description = "Remove every icon and status label written by this plugin"
 contexts = ["global"]
 command = ["python3", "agent_labels.py", "clear"]

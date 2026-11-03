@@ -66,9 +66,8 @@ def flag_values(args, flag):
     return [args[i + 1] for i, arg in enumerate(args) if arg == flag]
 
 
-def agent(pane, kind="claude", status="idle", session=None, workspace=None):
-    info = {"pane_id": pane, "agent": kind, "agent_status": status,
-            "workspace_id": workspace or pane.split(":")[0]}
+def agent(pane, kind="claude", status="idle", session=None):
+    info = {"pane_id": pane, "agent": kind, "agent_status": status}
     if session:
         info["agent_session"] = {"agent": kind, "kind": "id", "value": session}
     return info
@@ -473,16 +472,8 @@ class PluginTest(unittest.TestCase):
     def test_events_without_pane_or_unknown_events_are_ignored(self):
         fake = FakeHerdr()
         self.assertEqual(al.main(["event"], self.env(HERDR_PLUGIN_EVENT_JSON="{}"), run=fake), 0)
-        self.assertEqual(self.event(fake, "worktree.created", NOW, workspace_id="w1"), 0)
         self.assertEqual(self.event(fake, "pane.focused", NOW, pane_id="w1:p1"), 0)
-        self.assertEqual(self.event(fake, "pane.agent_status_changed", NOW, agent_status="idle"), 0)
         self.assertEqual(fake.calls, [])
-
-    def test_board_action_opens_the_popup(self):
-        fake = FakeHerdr()
-        self.assertEqual(al.main(["board"], self.env(HERDR_PLUGIN_ID="riba2534.agent-labels"), run=fake), 0)
-        self.assertEqual(fake.calls, [["plugin", "pane", "open", "--plugin", "riba2534.agent-labels",
-                                       "--entrypoint", "board"]])
 
     def test_usage(self):
         self.assertEqual(al.main([], self.env(), run=FakeHerdr()), 2)

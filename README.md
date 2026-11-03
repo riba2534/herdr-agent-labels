@@ -3,7 +3,7 @@
 <p align="center">
   <strong>一眼分清每个 Agent 是谁、在干什么、从什么时候开始</strong>
   <br />
-  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标、状态说明和状态时间，再用一个弹窗按状态汇总所有机器上的 Agent。
+  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标、易读的状态说明和状态时间，正在跑的、跑完没看的、闲置很久的一目了然。
 </p>
 
 <p align="center">
@@ -18,7 +18,6 @@
   <a href="#安装">安装</a> ·
   <a href="#配置侧边栏">配置侧边栏</a> ·
   <a href="#状态时间">状态时间</a> ·
-  <a href="#agent-总览">Agent 总览</a> ·
   <a href="#多台机器">多台机器</a> ·
   <a href="#自定义">自定义</a> ·
   <a href="#工作原理">工作原理</a> ·
@@ -55,7 +54,6 @@ agents                              priority
 | Agent 图标 | Claude Code 显示 Claude 星芒，Codex 显示 OpenAI 花结；其他 Agent 显示它的名字，也可以在配置里指定图标 |
 | 状态说明 | 运行中、已完成·未查看、待你确认、空闲、状态未知；按系统语言自动选择中文或英文 |
 | 状态时间 | 进入当前状态的时间：运行中显示开始时间，已完成和空闲显示完成时间；当天的只显示时间，更早的显示日期和时间 |
-| Agent 总览 | 按 `Ctrl+B` 再按 `A` 打开弹窗，所有机器上的 Agent 按状态分组，带组标题和数量，回车跳转 |
 | 自动生效 | 新开的 Agent 被 Herdr 识别后立即挂上标识；Herdr 重启后自动补上 |
 | 多台机器 | 每台运行 Herdr 的机器各装一份，Saved SSH machines 里的 Agent 同样显示 |
 | 一键还原 | 「清除 Agent 标识」动作删除插件写入的全部显示内容 |
@@ -83,7 +81,7 @@ herdr plugin action invoke riba2534.agent-labels.apply
 
 ## 配置侧边栏
 
-插件只提供图标、文案和时间，侧边栏怎么排列、快捷键怎么绑由你自己的 `config.toml` 决定。把下面的配置加进 Herdr 配置文件（默认 `~/.config/herdr/config.toml`），已有同名段的话合并进去：
+插件只提供图标和文案，侧边栏怎么排列由你自己的 `config.toml` 决定。把下面的配置加进 Herdr 配置文件（默认 `~/.config/herdr/config.toml`），已有 `[ui]` 段的话合并进去：
 
 ```toml
 [ui]
@@ -95,12 +93,6 @@ rows = [
   ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, { token = "workspace", fg = "#cba6f7", bold = true, dim = false }, "tab"],
   [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", fg = "#89b4fa", dim = false }],
 ]
-
-[[keys.command]]
-key = "prefix+a"
-type = "plugin_action"
-command = "riba2534.agent-labels.board"
-description = "Agent 总览"
 ```
 
 保存后运行 `herdr config check` 检查格式，再在 Herdr 里按 prefix 键（默认 `Ctrl+B`）、再按 `Shift+R` 执行 reload config。命令行的 `herdr server reload-config` 不一定能刷新已经打开的侧边栏，以界面里的 reload config 为准。Herdr 的配置解析只支持 TOML 1.0，行内表不能换行，所以规则写在同一行。
@@ -111,7 +103,6 @@ description = "Agent 总览"
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
 | 第 1 行 | 状态图标、Agent 图标、工作区、标签页；Claude 图标橙色，OpenAI 图标白色，工作区名紫色加粗 |
 | 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用蓝色 |
-| `[[keys.command]]` | `prefix+a` 打开 Agent 总览弹窗 |
 
 各状态的显示：
 
@@ -137,33 +128,6 @@ Herdr 不提供状态变化的时间，插件在每台机器上自己记录：
 - **格式。** 当天的只显示时间 `13:05`，更早的显示日期和时间 `11-02 23:10`；英文为 `since 13:05`、`since 11-02 23:10`。
 
 时间是写入侧边栏的文字，不会自己走动。是否显示日期在这台机器上有 Agent 状态变化时重新判断，一台机器整晚没有任何变化的话，第二天早上它显示的可能还是不带日期的前一天时间，直到有 Agent 开始干活。记录保存在 Herdr 的插件状态目录里，同一台机器上的多个 Herdr 会话各自记录。
-
-## Agent 总览
-
-按 `Ctrl+B` 再按 `A`（`prefix+a`）打开一个弹窗，把所有机器上的 Agent 按状态分组列出来：
-
-```
-Agent 总览  ·  4 台机器 · 20 个 Agent                                     14:41:12 更新
-────────────────────────────────────────────────────────────────────────────────────
-▍运行中 2
- ◐ ✳ Local      ~  herdr 插件查看 Claude/Codex 运行状态                         14:34
- ◐ ✳ macminim6  viral-bot · agent-1                                             14:26
-▍已完成·未查看 2
- ✓ ✳ devcn      astergate                                                       14:40
- ✓ ✳ homebig    fishclaw                                                        12:45
-▍空闲 16
- ○ ✳ devcn      copa · 微信转发                                                 13:03
- ○ ✳ devcn      copa · meego 跟进处理  hpc-work 与 open-lark 业务需求梳理       13:33
- …
-────────────────────────────────────────────────────────────────────────────────────
- ↑↓ 选择   Enter 跳转   i 折叠空闲   r 刷新   q 关闭
-```
-
-- 分组顺序：待你确认 → 运行中 → 已完成·未查看 → 空闲 → 状态未知，组标题带数量；同一组里按机器、工作区、标签页的顺序排列。
-- 每行是状态、Agent 图标、机器、工作区 · 标签页、会话标题（Claude Code 自己起了标题时才显示）和状态时间。
-- 每 5 秒在后台刷新一次，各台机器并行读取，某台连不上会在顶部显示原因，其他机器照常显示。
-- **跳转**：同一台机器上的 Agent 回车直接跳过去并关闭弹窗。其他机器上的 Agent 会在那台机器上选中它，但 Herdr 不允许插件切换你正在看的机器，需要你在侧边栏点一下那台机器。
-- **在哪台机器上打开**：快捷键触发的插件在你当前选中的机器上运行。在 Local 上打开能看到所有 Saved SSH machines；在远程机器上打开只显示那一台。
 
 ## 多台机器
 
@@ -217,15 +181,13 @@ Herdr 客户端侧边栏 ◀── config.toml 的行布局引用 $logo、state_
 
 - 插件通过 `herdr pane report-metadata` 给每个 Agent 写入展示元数据：`logo` 和 `since` 两个自定义字段，以及五种状态各自的文案（`state_labels`）。
 - 状态文案一次写好，Herdr 按 Agent 当前的状态挑选显示；时间由状态变化事件更新。插件没有常驻进程，每次事件执行一次就退出。
-- 触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识和时间；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除；`pane.agent_status_changed` 事件记录状态变化的时间，只写 `since` 字段。
+- 三个触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识和时间；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除；`pane.agent_status_changed` 事件记录状态变化的时间，只写 `since` 字段。
 - 状态时间记录在插件状态目录下的 `since-<server>.json`，按 Herdr server 区分，多个钩子同时运行时用文件锁串行。
-- Agent 总览是插件声明的 `board` 弹窗入口，由 `board` 动作打开；它在本机读取 `herdr api snapshot`，对 Saved SSH machines 用 `herdr --machine` 读取。
 - 展示元数据不参与状态判定，Agent 的状态、通知、`agent wait` 和排序都由 Herdr 自己决定。
 
 ```
-herdr-plugin.toml   插件清单：启动钩子、事件钩子、弹窗入口、三个动作
+herdr-plugin.toml   插件清单：启动钩子、两个事件钩子、两个动作
 agent_labels.py     写入与清除 Agent 标识，记录状态时间
-board.py            Agent 总览弹窗（curses）
 tests/              单元测试
 ```
 
@@ -238,7 +200,6 @@ herdr plugin link "$PWD"                                   # 用本地目录注�
 herdr plugin action invoke riba2534.agent-labels.apply     # 给当前 Agent 写入标识
 herdr plugin log list --plugin riba2534.agent-labels       # 查看插件运行记录
 python3 -m unittest discover tests                         # 单元测试
-python3 board.py --dump                                    # 把 Agent 总览打印成文字，不开弹窗
 ```
 
 `plugin link` 不会触发启动钩子，修改代码后手动执行一次 `apply` 查看效果。用 `herdr agent get <pane_id>` 可以看到插件写入的 `tokens` 和 `state_labels`。
@@ -259,11 +220,7 @@ python3 board.py --dump                                    # 把 Agent 总览打
 
 **改了侧边栏配置没有变化？** 在 Herdr 里按 prefix 键（默认 `Ctrl+B`）再按 `Shift+R` 重新加载配置。命令行的 `herdr server reload-config` 有时刷新不到已经打开的侧边栏。
 
-**Agent 总览只显示了一台机器？** 弹窗在你当前选中的机器上运行，只有在 Local 上打开才能读取 Saved SSH machines。先在侧边栏选中 Local 再按 `prefix+a`。
-
-**在总览里跳到其他机器的 Agent，画面没切过去？** Herdr 不允许插件切换你正在看的机器。插件已经在那台机器上选中了这个 Agent，在侧边栏点一下那台机器就会停在它上面。
-
-**怎么卸载？** 先执行「清除 Agent 标识」，再卸载插件，最后删掉 `config.toml` 里加的侧边栏配置和快捷键：
+**怎么卸载？** 先执行「清除 Agent 标识」，再卸载插件，最后删掉 `config.toml` 里加的侧边栏配置：
 
 ```bash
 herdr plugin action invoke riba2534.agent-labels.clear

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Claude / Codex icons, readable status labels and status times for the Herdr sidebar.
 
-Usage: agent_labels.py apply | clear | event | board
+Usage: agent_labels.py apply | clear | event
 
-  apply  write icons, labels and times for every agent on this server
+  apply  write the icon, status labels and status time for every agent on this server
   clear  remove everything this plugin wrote
-  event  handle a hook (reads HERDR_PLUGIN_EVENT and HERDR_PLUGIN_EVENT_JSON)
-  board  open the agent overview popup (board.py)
+  event  handle a pane.agent_detected or pane.agent_status_changed hook
+         (reads HERDR_PLUGIN_EVENT and HERDR_PLUGIN_EVENT_JSON)
 
 Everything is written as display-only pane metadata, so agent status,
 notifications and `herdr agent wait` are never affected.
@@ -353,7 +353,7 @@ def parse_event(raw):
 
 def event_name(environ, data):
     name = environ.get("HERDR_PLUGIN_EVENT") or str(data.get("type", ""))
-    return name.replace("_", ".", 1) if "." not in name else name
+    return name.replace("_", ".", 1) if name.startswith("pane_") else name
 
 
 class Herdr:
@@ -456,12 +456,6 @@ class Plugin:
         print("agent-labels: cleared {} pane(s)".format(done))
         return 1 if failed else 0
 
-    def board(self):
-        """Open the overview popup declared as the `board` pane entrypoint."""
-        plugin_id = self.environ.get("HERDR_PLUGIN_ID") or SOURCE.split(":", 1)[1]
-        self.herdr.call("plugin", "pane", "open", "--plugin", plugin_id, "--entrypoint", "board")
-        return 0
-
     def agent_detected(self, data):
         pane, kind = data.get("pane_id"), data.get("agent")
         if data.get("released") or not kind:
@@ -532,23 +526,23 @@ class Plugin:
 
     def event(self):
         data = parse_event(self.environ.get("HERDR_PLUGIN_EVENT_JSON"))
-        name = event_name(self.environ, data)
-        if name not in ("pane.agent_status_changed", "pane.agent_detected"):
-            log("ignoring event {!r}".format(name))
-            return 0
         if not data.get("pane_id"):
             log("event without pane_id, nothing to do")
             return 0
+        name = event_name(self.environ, data)
         if name == "pane.agent_status_changed":
             return self.status_changed(data)
-        return self.agent_detected(data)
+        if name == "pane.agent_detected":
+            return self.agent_detected(data)
+        log("ignoring event {!r}".format(name))
+        return 0
 
 
 def main(argv=None, environ=None, run=subprocess.run, now=None):
     argv = sys.argv[1:] if argv is None else argv
     environ = os.environ if environ is None else environ
-    if len(argv) != 1 or argv[0] not in ("apply", "clear", "event", "board"):
-        log("usage: agent_labels.py apply|clear|event|board")
+    if len(argv) != 1 or argv[0] not in ("apply", "clear", "event"):
+        log("usage: agent_labels.py apply|clear|event")
         return 2
     herdr = Herdr(environ.get("HERDR_BIN_PATH") or "herdr", run=run)
     plugin = Plugin(herdr, load_config(environ.get("HERDR_PLUGIN_CONFIG_DIR")), environ, now)
