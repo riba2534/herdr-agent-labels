@@ -3,7 +3,7 @@
 <p align="center">
   <strong>一眼分清每个 Agent 是谁、在干什么、从什么时候开始</strong>
   <br />
-  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标、状态说明和状态时间，给每个工作区标上 Agent 计数，再用一个弹窗按状态汇总所有机器上的 Agent。
+  给 Herdr 侧边栏的 Agent 加上 Claude / Codex 图标、状态说明和状态时间，再用一个弹窗按状态汇总所有机器上的 Agent。
 </p>
 
 <p align="center">
@@ -18,7 +18,6 @@
   <a href="#安装">安装</a> ·
   <a href="#配置侧边栏">配置侧边栏</a> ·
   <a href="#状态时间">状态时间</a> ·
-  <a href="#工作区计数">工作区计数</a> ·
   <a href="#agent-总览">Agent 总览</a> ·
   <a href="#多台机器">多台机器</a> ·
   <a href="#自定义">自定义</a> ·
@@ -56,7 +55,6 @@ agents                              priority
 | Agent 图标 | Claude Code 显示 Claude 星芒，Codex 显示 OpenAI 花结；其他 Agent 显示它的名字，也可以在配置里指定图标 |
 | 状态说明 | 运行中、已完成·未查看、待你确认、空闲、状态未知；按系统语言自动选择中文或英文 |
 | 状态时间 | 进入当前状态的时间：运行中显示开始时间，已完成和空闲显示完成时间；当天的只显示时间，更早的显示日期和时间 |
-| 工作区计数 | machines 面板里每个工作区显示各状态的 Agent 数量，例如 `◐2 ✓1 ○3` |
 | Agent 总览 | 按 `Ctrl+B` 再按 `A` 打开弹窗，所有机器上的 Agent 按状态分组，带组标题和数量，回车跳转 |
 | 自动生效 | 新开的 Agent 被 Herdr 识别后立即挂上标识；Herdr 重启后自动补上 |
 | 多台机器 | 每台运行 Herdr 的机器各装一份，Saved SSH machines 里的 Agent 同样显示 |
@@ -85,7 +83,7 @@ herdr plugin action invoke riba2534.agent-labels.apply
 
 ## 配置侧边栏
 
-插件只提供图标、文案、时间和计数，侧边栏怎么排列、快捷键怎么绑由你自己的 `config.toml` 决定。把下面的配置加进 Herdr 配置文件（默认 `~/.config/herdr/config.toml`），已有同名段的话合并进去：
+插件只提供图标、文案和时间，侧边栏怎么排列、快捷键怎么绑由你自己的 `config.toml` 决定。把下面的配置加进 Herdr 配置文件（默认 `~/.config/herdr/config.toml`），已有同名段的话合并进去：
 
 ```toml
 [ui]
@@ -96,12 +94,6 @@ agent_panel_sort = "priority"
 rows = [
   ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, { token = "workspace", fg = "#cba6f7", bold = true, dim = false }, "tab"],
   [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", fg = "#89b4fa", dim = false }],
-]
-
-[ui.sidebar.spaces]
-rows = [
-  ["state_icon", "workspace"],
-  ["branch", "git_status", { token = "$agents_working", fg = "#f9e2af", bold = true }, { token = "$agents_done", fg = "#94e2d5", bold = true }, { token = "$agents_blocked", fg = "#f38ba8", bold = true }, { token = "$agents_idle", fg = "#a6adc8" }],
 ]
 
 [[keys.command]]
@@ -119,7 +111,6 @@ description = "Agent 总览"
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
 | 第 1 行 | 状态图标、Agent 图标、工作区、标签页；Claude 图标橙色，OpenAI 图标白色，工作区名紫色加粗 |
 | 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用蓝色 |
-| `[ui.sidebar.spaces]` | machines 面板每个工作区的第 2 行，在分支名后面加上 Agent 计数，颜色和状态说明一致 |
 | `[[keys.command]]` | `prefix+a` 打开 Agent 总览弹窗 |
 
 各状态的显示：
@@ -146,19 +137,6 @@ Herdr 不提供状态变化的时间，插件在每台机器上自己记录：
 - **格式。** 当天的只显示时间 `13:05`，更早的显示日期和时间 `11-02 23:10`；英文为 `since 13:05`、`since 11-02 23:10`。
 
 时间是写入侧边栏的文字，不会自己走动。是否显示日期在这台机器上有 Agent 状态变化时重新判断，一台机器整晚没有任何变化的话，第二天早上它显示的可能还是不带日期的前一天时间，直到有 Agent 开始干活。记录保存在 Herdr 的插件状态目录里，同一台机器上的多个 Herdr 会话各自记录。
-
-## 工作区计数
-
-machines 面板里每个工作区的第 2 行（分支名那一行）显示这个工作区里各状态的 Agent 数量：
-
-```
-● copa
-  main · ◐1 · ✓1 · ○3
-○ herdrx
-  main · ○1
-```
-
-`◐` 运行中、`✓` 已完成·未查看、`×` 待你确认、`○` 空闲，数量为 0 的不显示。Agent 出现、状态变化、退出、移动，以及你切换 pane、标签页、工作区时都会重新统计；最后一种用来捕捉「看过之后已完成变空闲」，Herdr 不为这个变化单独发事件。
 
 ## Agent 总览
 
@@ -239,15 +217,14 @@ Herdr 客户端侧边栏 ◀── config.toml 的行布局引用 $logo、state_
 
 - 插件通过 `herdr pane report-metadata` 给每个 Agent 写入展示元数据：`logo` 和 `since` 两个自定义字段，以及五种状态各自的文案（`state_labels`）。
 - 状态文案一次写好，Herdr 按 Agent 当前的状态挑选显示；时间由状态变化事件更新。插件没有常驻进程，每次事件执行一次就退出。
-- 触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识、时间和计数；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除；`pane.agent_status_changed` 事件记录状态变化的时间，只写 `since` 字段；`pane.closed`、`pane.moved`、`pane.focused`、`tab.focused`、`workspace.focused` 只重新统计工作区计数。
-- 工作区计数通过 `herdr workspace report-metadata` 写成 `agents_working`、`agents_done`、`agents_blocked`、`agents_idle` 四个字段，只在数字变化时写入。
-- 状态时间和上次写入的计数分别记录在插件状态目录下的 `since-<server>.json`、`counts-<server>.json`，按 Herdr server 区分，多个钩子同时运行时用文件锁串行。
+- 触发点：Herdr 启动后的 `startup` 钩子给已有 Agent 补上标识和时间；`pane.agent_detected` 事件在新 Agent 出现或种类变化时更新，Agent 退出时清除；`pane.agent_status_changed` 事件记录状态变化的时间，只写 `since` 字段。
+- 状态时间记录在插件状态目录下的 `since-<server>.json`，按 Herdr server 区分，多个钩子同时运行时用文件锁串行。
 - Agent 总览是插件声明的 `board` 弹窗入口，由 `board` 动作打开；它在本机读取 `herdr api snapshot`，对 Saved SSH machines 用 `herdr --machine` 读取。
 - 展示元数据不参与状态判定，Agent 的状态、通知、`agent wait` 和排序都由 Herdr 自己决定。
 
 ```
 herdr-plugin.toml   插件清单：启动钩子、事件钩子、弹窗入口、三个动作
-agent_labels.py     写入与清除 Agent 标识，记录状态时间，统计工作区计数
+agent_labels.py     写入与清除 Agent 标识，记录状态时间
 board.py            Agent 总览弹窗（curses）
 tests/              单元测试
 ```

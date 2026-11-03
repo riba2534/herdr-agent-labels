@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Claude / Codex icons, readable status labels, status times and workspace agent
-counts for the Herdr sidebar.
+"""Claude / Codex icons, readable status labels and status times for the Herdr sidebar.
 
 Usage: agent_labels.py apply | clear | event | board
 
-  apply  write icons, labels, times and workspace counts for this server
+  apply  write icons, labels and times for every agent on this server
   clear  remove everything this plugin wrote
   event  handle a hook (reads HERDR_PLUGIN_EVENT and HERDR_PLUGIN_EVENT_JSON)
   board  open the agent overview popup (board.py)
@@ -33,16 +32,6 @@ SOURCE = "plugin:riba2534.agent-labels"
 LOGO_TOKEN = "logo"
 SINCE_TOKEN = "since"
 STATES = ("working", "done", "blocked", "idle", "unknown")
-
-# Workspace tokens: how many of the workspace's agents are in each status.
-COUNT_TOKENS = (
-    ("working", "agents_working", "\u25d0"),
-    ("done", "agents_done", "\u2713"),
-    ("blocked", "agents_blocked", "\u00d7"),
-    ("idle", "agents_idle", "\u25cb"),
-)
-# Events that can change which agents sit in a workspace, or turn done into idle.
-COUNT_EVENTS = {"pane.closed", "pane.moved", "pane.focused", "tab.focused", "workspace.focused"}
 TRANSCRIPT_SCAN_LIMIT = 64 * 1024 * 1024
 TRANSCRIPT_CHUNK = 1024 * 1024
 
@@ -267,19 +256,19 @@ def estimate_since(kind, status, session, environ):
         return None
 
 
-def state_file_name(socket_path, name="since"):
+def state_file_name(socket_path):
     """One record per Herdr server: the plugin state dir is shared by every session."""
     if not socket_path:
-        return name + ".json"
-    return "{}-{}.json".format(name, hashlib.sha1(socket_path.encode("utf-8")).hexdigest()[:12])
+        return "since.json"
+    return "since-{}.json".format(hashlib.sha1(socket_path.encode("utf-8")).hexdigest()[:12])
 
 
 class StateStore:
-    """Per-server JSON record, serialized across concurrently running hooks."""
+    """Per-server record of when each agent entered its current status."""
 
-    def __init__(self, state_dir, socket_path=None, name="since"):
+    def __init__(self, state_dir, socket_path=None):
         self.state_dir = state_dir
-        self.path = os.path.join(state_dir, state_file_name(socket_path, name)) if state_dir else None
+        self.path = os.path.join(state_dir, state_file_name(socket_path)) if state_dir else None
 
     @contextlib.contextmanager
     def locked(self):
@@ -306,7 +295,7 @@ class StateStore:
         return state if isinstance(state, dict) else {}
 
     def _write(self, state):
-        fd, tmp = tempfile.mkstemp(dir=self.state_dir, prefix=".state.")
+        fd, tmp = tempfile.mkstemp(dir=self.state_dir, prefix=".since.")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(state, fh, ensure_ascii=False, indent=1, sort_keys=True)
@@ -342,32 +331,6 @@ def clear_args(pane_id):
         "pane", "report-metadata", pane_id, "--source", SOURCE,
         "--clear-token", LOGO_TOKEN, "--clear-token", SINCE_TOKEN, "--clear-state-labels",
     ]
-
-
-def workspace_args(workspace_id, tokens):
-    args = ["workspace", "report-metadata", workspace_id, "--source", SOURCE]
-    for name in sorted(tokens):
-        args += token_args(name, tokens[name])
-    return args
-
-
-def workspace_counts(agents):
-    """{workspace_id: {status: number of agents}}"""
-    counts = {}
-    for agent in agents:
-        workspace, status = agent.get("workspace_id"), agent.get("agent_status")
-        if workspace and status:
-            bucket = counts.setdefault(workspace, {})
-            bucket[status] = bucket.get(status, 0) + 1
-    return counts
-
-
-def count_tokens(counts):
-    """Token values for one workspace, e.g. agents_working="◐2"; empty statuses are cleared."""
-    return {
-        token: "{}{}".format(symbol, counts[status]) if counts.get(status) else None
-        for status, token, symbol in COUNT_TOKENS
-    }
 
 
 def token_args(name, value):
@@ -425,9 +388,6 @@ class Herdr:
     def panes(self):
         return self.call("pane", "list").get("result", {}).get("panes", [])
 
-    def workspaces(self):
-        return self.call("workspace", "list").get("result", {}).get("workspaces", [])
-
 
 def session_of(agent):
     return (agent.get("agent_session") or {}).get("value")
@@ -443,9 +403,7 @@ class Plugin:
         self.environ = environ
         self.now = time.time() if now is None else now
         self.locale = resolve_locale(config, environ)
-        state_dir, socket_path = environ.get("HERDR_PLUGIN_STATE_DIR"), environ.get("HERDR_SOCKET_PATH")
-        self.store = StateStore(state_dir, socket_path)
-        self.counts = StateStore(state_dir, socket_path, name="counts")
+        self.store = StateStore(environ.get("HERDR_PLUGIN_STATE_DIR"), environ.get("HERDR_SOCKET_PATH"))
 
     def labels(self):
         return resolve_labels(self.config, self.environ)
@@ -483,42 +441,19 @@ class Plugin:
                               shown.get(agent["pane_id"]))
             failed += not self.report(args)
         print("agent-labels: labeled {} agent(s)".format(len(agents) - failed))
-        return max(1 if failed else 0, self.refresh_counts())
+        return 1 if failed else 0
 
     def clear(self):
         # Forget the times first: clearing labels makes Herdr resend statuses, and
         # those hooks must find nothing to restore.
         self.store.remove()
-        self.counts.remove()
         failed = done = 0
         for pane in self.herdr.panes():
             if pane.get("pane_id"):
                 ok = self.report(clear_args(pane["pane_id"]))
                 done += ok
                 failed += not ok
-        empty = count_tokens({})
-        for workspace in self.herdr.workspaces():
-            if workspace.get("workspace_id"):
-                failed += not self.report(workspace_args(workspace["workspace_id"], empty))
         print("agent-labels: cleared {} pane(s)".format(done))
-        return 1 if failed else 0
-
-    def refresh_counts(self):
-        """Write per-workspace agent counts, reporting only the workspaces that changed."""
-        failed = 0
-        with self.counts.locked() as shown:
-            counts = workspace_counts(self.herdr.agents())
-            workspaces = [w["workspace_id"] for w in self.herdr.workspaces() if w.get("workspace_id")]
-            for workspace in set(shown) - set(workspaces):
-                del shown[workspace]
-            for workspace in workspaces:
-                tokens = count_tokens(counts.get(workspace, {}))
-                if shown.get(workspace) == tokens:
-                    continue
-                if self.report(workspace_args(workspace, tokens)):
-                    shown[workspace] = tokens
-                else:
-                    failed += 1
         return 1 if failed else 0
 
     def board(self):
@@ -598,8 +533,6 @@ class Plugin:
     def event(self):
         data = parse_event(self.environ.get("HERDR_PLUGIN_EVENT_JSON"))
         name = event_name(self.environ, data)
-        if name in COUNT_EVENTS:
-            return self.refresh_counts()
         if name not in ("pane.agent_status_changed", "pane.agent_detected"):
             log("ignoring event {!r}".format(name))
             return 0
@@ -607,10 +540,8 @@ class Plugin:
             log("event without pane_id, nothing to do")
             return 0
         if name == "pane.agent_status_changed":
-            result = self.status_changed(data)
-        else:
-            result = self.agent_detected(data)
-        return max(result, self.refresh_counts())
+            return self.status_changed(data)
+        return self.agent_detected(data)
 
 
 def main(argv=None, environ=None, run=subprocess.run, now=None):
