@@ -90,7 +90,7 @@ agent_panel_sort = "priority"
 
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, "workspace", "tab"],
+  ["state_icon", { token = "$logo", rules = [{ equals = "\uEC82", fg = "#D97757" }, { equals = "\uEC81", fg = "#E6E6E6" }] }, { token = "workspace", fg = "#cba6f7", bold = true, dim = false }, "tab"],
   [{ token = "state_text", rules = [{ equals = "运行中", fg = "#f9e2af", bold = true }, { equals = "已完成·未查看", fg = "#94e2d5", bold = true }, { equals = "待你确认", fg = "#f38ba8", bold = true }, { equals = "Running", fg = "#f9e2af", bold = true }, { equals = "Done · unread", fg = "#94e2d5", bold = true }, { equals = "Needs you", fg = "#f38ba8", bold = true }, { equals = "working", fg = "#f9e2af", bold = true }, { equals = "done", fg = "#94e2d5", bold = true }, { equals = "blocked", fg = "#f38ba8", bold = true }] }, { token = "$since", fg = "#89b4fa", dim = false }],
 ]
 ```
@@ -101,7 +101,7 @@ rows = [
 |---|---|
 | `status_indicators = "symbols"` | 状态图标换成形状不同的符号，不再只靠颜色区分 |
 | `agent_panel_sort = "priority"` | 按状态排序，同一状态的 Agent 排在一起 |
-| 第 1 行 | 状态图标、Agent 图标、工作区、标签页；Claude 图标橙色，OpenAI 图标白色 |
+| 第 1 行 | 状态图标、Agent 图标、工作区、标签页；Claude 图标橙色，OpenAI 图标白色，工作区名紫色加粗 |
 | 第 2 行 | 状态说明和状态时间；运行中、已完成·未查看、待你确认分别用黄、青、红色加粗，时间用蓝色 |
 
 各状态的显示：
